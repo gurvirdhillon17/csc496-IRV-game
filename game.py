@@ -17,6 +17,30 @@ winner: Optional[str] = None
 round_results: List[Dict[str, int]] = []
 user_rankings: Dict[str, int] = {}
 
+# define quiz questions
+quiz_questions = [
+    {
+        "question": "What happens if no candidate receives more than 50% of the first-choice votes?",
+        "options": ["A random candidate is chosen as the winner", "Votes are recounted", "The candidate with the least votes is eliminated", "The election is declared invalid"],
+        "answer": "The candidate with the least votes is eliminated"
+    },
+    {
+        "question": "Why are votes redistributed in IRV?",
+        "options": ["To ensure all votes count", "To eliminate a candidate", "To speed up the voting process", "None of the above"],
+        "answer": "To ensure all votes count"
+    },
+    {
+        "question": "Which of the following best describes 'Instant Runoff Voting'?",
+        "options": ["A system where the last candidate is always eliminated", "A system where voters can vote multiple times", "A system that ranks candidates by preference", "A voting system without primaries"],
+        "answer": "A system that ranks candidates by preference"
+    },
+    {
+        "question": "What is the main advantage of IRV over traditional plurality voting?",
+        "options": ["Faster results", "Lower cost", "Reduces the likelihood of needing a runoff election", "Allows voting by mail"],
+        "answer": "Reduces the likelihood of needing a runoff election"
+    }
+]
+
 # Set up the display
 screen_width, screen_height = 1200, 800
 screen = pygame.display.set_mode((screen_width, screen_height))
@@ -32,6 +56,9 @@ PADDING_LEFT = 120  # Left padding
 PADDING_BOTTOM = 30  # Bottom padding
 PADDING_TOP = 40  # Top padding
 TEXT_HEIGHT = 30
+NAME_FONT_SIZE = 22  
+VOTE_COUNT_FONT_SIZE = 20
+
 
 # Define button for submitting vote
 submit_button_rect = pygame.Rect(screen_width - 160, screen_height - 70, 150, 50)
@@ -168,68 +195,81 @@ def draw_bar_graph(vote_counts, x_offset, y_offset, screen, bar_width, bar_spaci
     # Adjust x_offset to center the bars horizontally
     x_offset += (total_width - (bar_width + bar_spacing)) / 2
     
-    for i, (candidate, votes) in enumerate(sorted(vote_counts.items(), key=lambda item: item[1], reverse=True)):
-        # Calculate bar height based on the percentage of votes.
-        bar_height = (votes / max_votes) * max_bar_height
-        
-        # Calculate the position of the bar
-        bar_x = x_offset + i * (bar_width + bar_spacing)
-        bar_y = y_offset + max_bar_height - bar_height
-        
-        # Draw the bar
-        pygame.draw.rect(screen, LIGHT_BLUE, (bar_x, bar_y, bar_width, bar_height))
-        
-        # Label the bar with the candidate's name and vote count
-        # Increase horizontal spacing between names by adding extra spacing to bar_x
-        draw_text(candidate, (bar_x + bar_width / 2 + i * 20, y_offset + max_bar_height + TEXT_SPACING), WHITE, font_size=25)
-        draw_text(str(votes), (bar_x + bar_width / 2, bar_y - TEXT_SPACING), WHITE, font_size=25)
+    for i, (candidate, votes) in enumerate(sorted(round_votes.items(), key=lambda item: item[1], reverse=True)):
+        bar_height = (votes / max_votes) * MAX_BAR_HEIGHT
+        bar_x = bar_graph_center_x + i * (BAR_WIDTH + BAR_SPACING)
+        bar_y = y_offset + MAX_BAR_HEIGHT - bar_height
+    
+    # Draw the bar
+    pygame.draw.rect(screen, LIGHT_BLUE, (bar_x, bar_y, BAR_WIDTH, bar_height))
+    
+    # Draw candidate name centered under the bar
+    draw_name_under_bar(candidate, bar_x, bar_y, BAR_WIDTH, bar_height)
 
+    draw_text(str(votes), (bar_x + bar_width / 2, bar_y - TEXT_SPACING), WHITE, font_size=25)
 
-
+def draw_text_centered(surface, text, center_x, y, color, font_size):
+    font = pygame.font.Font(None, font_size)
+    text_surface = font.render(text, True, color)
+    text_rect = text_surface.get_rect(center=(center_x, y))
+    surface.blit(text_surface, text_rect)
 
 
 def draw_results_screen(winner, round_results, user_rankings):
     global screen  # Ensure 'screen' is the pygame display surface
-    
-    # Clear the screen first
-    screen.fill(BLACK)
-    
-    # Calculate spacing and layout parameters
-    text_area_width = 200
-    graph_area_width = screen_width - text_area_width - PADDING_LEFT * 2
-    # Calculate the y offset for the first graph
-    y_offset = PADDING_TOP
+    global font  # Make sure to use the global font variable
+
+    screen.fill(BLACK)  # Clear the screen
+
+    y_offset = PADDING_TOP  # Start below the top padding
     
     for round_num, round_votes in enumerate(round_results, start=1):
-        # Adjust these values as necessary to fit your desired layout.
-        graph_x_offset = PADDING_LEFT
-        
-        # Draw the round number text
-        round_text = f"Round {round_num}"
-        draw_text(round_text, (PADDING_LEFT - 105, y_offset + MAX_BAR_HEIGHT / 2), LIGHT_BLUE, font_size=30)
-        
-        # Draw the bar graph for the round
-        draw_bar_graph(round_votes, graph_x_offset, y_offset, screen, BAR_WIDTH, BAR_SPACING, MAX_BAR_HEIGHT)
-        
-        # Adjust y_offset for the next graph
-        y_offset += GRAPH_HEIGHT + TEXT_SPACING + MAX_BAR_HEIGHT + TEXT_SPACING
+        # Left-align the round results text
+        round_text = f"Round {round_num} Results"
+        draw_text(round_text, (PADDING_LEFT, y_offset), LIGHT_BLUE, font_size=30)
 
-    # Draw the winner text
-    if winner:
-        winner_text = f"The winner is: {winner}"
-        if winner == user_rankings.get(1):
-            winner_text += " - Your first choice won!"
-        elif winner in user_rankings.values():
-            rank = list(user_rankings.values()).index(winner) + 1
-            winner_text += f" - Your rank {rank} choice won!"
-        draw_text(winner_text, (PADDING_LEFT, y_offset), GREEN, font_size=40)
+        # Determine the bar graph center position
+        num_bars = len(round_votes)
+        bar_graph_center_x = (screen_width // 2) - ((BAR_WIDTH + BAR_SPACING) * num_bars // 2)
 
-    # Draw the options text below the winner text
-    options_text = "Press [W] to try different rankings, [N] for new round, [M] to Menu"
-    draw_text(options_text, (PADDING_LEFT, y_offset + TEXT_HEIGHT + TEXT_SPACING), LIGHT_BLUE, font_size=35)
+        # Draw bars, names, and vote counts
+        for i, (candidate, votes) in enumerate(sorted(round_votes.items(), key=lambda item: item[1], reverse=True)):
+            bar_x = bar_graph_center_x + i * (BAR_WIDTH + BAR_SPACING)
+            bar_height = (votes / max(round_votes.values())) * MAX_BAR_HEIGHT
+            bar_y = y_offset + TEXT_HEIGHT + (MAX_BAR_HEIGHT - bar_height)
 
-    # Update the display
-    pygame.display.flip()
+            # Draw the bar
+            pygame.draw.rect(screen, LIGHT_BLUE, (bar_x, bar_y, BAR_WIDTH, bar_height))
+
+            # Draw candidate name centered under the bar with a smaller font size
+            draw_text(candidate, (bar_x + (BAR_WIDTH - font.size(candidate)[0]) // 2, bar_y + bar_height + TEXT_SPACING), WHITE, font_size=NAME_FONT_SIZE)
+
+            # Draw vote count above the bar with a smaller font size
+            draw_text(str(votes), (bar_x + (BAR_WIDTH - font.size(str(votes))[0]) // 2, bar_y - font.size(str(votes))[1] - TEXT_SPACING), WHITE, font_size=VOTE_COUNT_FONT_SIZE)
+
+        # Update y_offset for the next block of content
+        y_offset += MAX_BAR_HEIGHT + TEXT_HEIGHT * 2 + TEXT_SPACING * 3
+
+    # Find the winner's rank in the user's rankings
+    winner_rank = next((rank for rank, name in user_rankings.items() if name == winner), None)
+
+    # Construct the winner text based on whether the winner was in the user's rankings
+    if winner_rank is not None:
+        winner_text = f"The winner is: {winner} - Your rank {winner_rank} won!"
+    else:
+        winner_text = f"The winner is: {winner} - They were not in your ranking."
+
+    # Draw the winner text at the bottom of the screen
+    y_offset = screen_height - TEXT_HEIGHT - PADDING_BOTTOM
+    draw_text(winner_text, (PADDING_LEFT, y_offset), GREEN, font_size=30)
+
+    # Ensure the 'Main Menu' button is in the bottom right
+    main_menu_button_rect = pygame.Rect(screen_width - 170, screen_height - 60, 150, 40)
+    draw_button(main_menu_button_rect, 'Main Menu', (main_menu_button_rect.x + 10, main_menu_button_rect.y + 5), LIGHT_BLUE, WHITE)
+
+
+    pygame.display.flip()  # Update the display
+
 
 
 
@@ -247,6 +287,7 @@ TUTORIAL_VOTING = 6
 TUTORIAL_COUNTING = 7
 TUTORIAL_RESULT = 8
 RE_VOTING = 9
+QUIZ = 10
 
 # Add an initial state for the educational content
 initial_state = MENU
@@ -364,20 +405,34 @@ def handle_submit_button(mouse_x, mouse_y):
 
 
             
-# Place this function before run_game()
 def draw_menu_screen():
     screen.fill(DARK_GREY)  # Menu background
-    menu_title = "Main Menu"
-    menu_options = ["[S] Start Game", "[T] Tutorial", "[Q] Quit"]
     
-    # Title
-    draw_text(menu_title, (screen_width // 2 - 100, 100), LIGHT_BLUE)
-    
+    # Game Title
+    game_title = "VoteQuest: The RCV Adventure"
+    title_surface = font.render(game_title, True, LIGHT_BLUE)
+    # Center the title surface
+    title_rect = title_surface.get_rect(center=(screen_width // 2, 100))
+    screen.blit(title_surface, title_rect)
+
     # Menu options
-    y_offset = 250
+    menu_options = ["[S] Start Game", "[T] Tutorial", "[Q] Quiz", "[X] Quit"]
+    y_offset = 250  # You can adjust this value as needed
     for option in menu_options:
-        draw_text(option, (screen_width // 2 - 100, y_offset), WHITE)
-        y_offset += 50
+        option_surface = font.render(option, True, WHITE)
+        option_rect = option_surface.get_rect(center=(screen_width // 2, y_offset))
+        screen.blit(option_surface, option_rect)
+        y_offset += 60  # Adjust the spacing as needed
+
+    pygame.display.flip()
+
+def draw_name_under_bar(candidate, bar_x, bar_y, bar_width, bar_height):
+    name_text = font.render(candidate, True, WHITE)
+    # Calculate the center position for the name based on the bar's position and width
+    name_text_rect = name_text.get_rect(center=(bar_x + bar_width // 2, bar_y + bar_height + TEXT_SPACING))
+    screen.blit(name_text, name_text_rect)
+
+
 
 def draw_re_voting_screen(remaining_candidates):
     # Clear the screen
@@ -413,6 +468,7 @@ def run_game():
     # Mouse position used for candidate selection
     mouse_x, mouse_y = 0, 0
     round_results = None
+    quiz_questions_index = 0
 
     while True:
         # Handle events
@@ -428,7 +484,9 @@ def run_game():
                     elif event.key == pygame.K_t:  # Tutorial
                         tutorial_step = 0  # Reset tutorial step to the beginning
                         game_state = TUTORIAL_INTRO
-                    elif event.key == pygame.K_q:  # Quit Game
+                    elif event.key == pygame.K_q:  # Quiz
+                        game_state = QUIZ
+                    elif event.key == pygame.K_x:  # Quit Game
                         pygame.quit()
                         sys.exit()
 
@@ -462,6 +520,38 @@ def run_game():
                         game_state = VOTING
                     elif event.key == pygame.K_n:  # New round with different candidates
                         start_new_round()
+            
+            elif game_state == QUIZ:
+                if quiz_questions_index < len(quiz_questions):
+                    options_positions = display_quiz_question(quiz_questions[quiz_questions_index])
+                    waiting_for_answer = True
+                    while waiting_for_answer:
+                        for event in pygame.event.get():
+                            if event.type == pygame.QUIT:
+                                pygame.quit()
+                                sys.exit()
+                            elif event.type == pygame.MOUSEBUTTONDOWN:
+                                mouse_x, mouse_y = event.pos
+                                for rect, option in options_positions:
+                                    if rect.collidepoint(mouse_x, mouse_y):
+                                        if option == quiz_questions[quiz_questions_index]['answer']:
+                                            feedback_text = "Correct!"
+                                            feedback_color = GREEN
+                                        else:
+                                            feedback_text = f"Incorrect! Correct answer: {quiz_questions[quiz_questions_index]['answer']}"
+                                            feedback_color = RED
+                                        draw_text(feedback_text, (screen_width // 2 - 100, screen_height - 100), feedback_color, font_size=24)
+                                        pygame.display.flip()
+                                        pygame.time.wait(2000)  # Wait two seconds to show feedback
+                                        waiting_for_answer = False
+                                        quiz_questions_index += 1
+                                        if quiz_questions_index >= len(quiz_questions):
+                                            quiz_questions_index = 0
+                                            game_state = MENU
+                                        break
+                else:
+                    game_state = MENU
+
 
 
             if game_state == VOTING:
@@ -524,6 +614,24 @@ def run_game():
         # Update display
         pygame.display.flip()
         clock.tick(60)
+        
+def display_quiz_question(question):
+    screen.fill(WHITE)
+    draw_text(question['question'], (100, 50), BLACK, font_size=36)
+
+    options_positions = []
+    y_start = 150
+    for index, option in enumerate(question['options']):
+        option_rect = pygame.Rect(100, y_start, screen_width - 200, 40)
+        pygame.draw.rect(screen, LIGHT_GREY, option_rect)
+        draw_text(f"{index + 1}. {option}", (110, y_start + 5), BLACK, font_size=24)
+        options_positions.append((option_rect, option))
+        y_start += 50
+
+    pygame.display.flip()
+    return options_positions
+
+
 
 
 def handle_voting(mouse_x, mouse_y):
